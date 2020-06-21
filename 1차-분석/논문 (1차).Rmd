@@ -1,0 +1,87 @@
+---
+title: '논문'
+author: "이규민, 장형욱"
+date: "2018년 6월 5일"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: vignette
+---
+#영화관련 데이터 불러오기 
+###출처: 영화산업진흥회
+```{r,message=FALSE}
+##필요드 패키지 로드
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(data.table)
+library(gridExtra)
+library(MASS)
+
+movie <- read.csv("C:/Users/user/Desktop/논문 기본자료.csv")
+head(movie,5)
+```
+
+#데이터 정제 (양적변수만 이용)
+```{r}
+movie1 <- movie[,c(1,2,4,5,6,7,12,13,15)]
+head(movie1)
+```
+
+#산점도 그리기
+```{r}
+plot(movie1)
+```
+
+```{r}
+a <- ggplot(movie, aes(x = Audience, y = Sales,color=Genre)) + geom_point()
+b <- ggplot(movie, aes(x = Screen, y =Sales ,color=Genre)) + geom_point()
+c <- ggplot(movie, aes(x = Showtime, y =Sales ,color=Genre)) + geom_point()
+d <- ggplot(movie, aes(x = Search, y =Sales ,color=Genre)) + geom_point()
+e <- ggplot(movie, aes(x = Logsearch, y =Sales ,color=Genre)) + geom_point()
+f <- ggplot(movie, aes(x = Year, y =Sales ,color=Genre)) + geom_point()
+grid.arrange(a,b,c,d,e,f, nrow=3, ncol=2)
+```
+
+##적합한 회귀직선 추가.
+```{r}
+aa <- a + stat_smooth(method = lm, se = TRUE, color = "red") 
+bb <- b + stat_smooth(method = lm, se = TRUE, color = "red")
+cc <- c + stat_smooth(method = lm, se = TRUE, color = "red") 
+dd <- d + stat_smooth(method = lm, se = TRUE, color = "red") 
+ee <- e + stat_smooth(method = lm, se = TRUE, color = "red") 
+ff <- f + stat_smooth(method = lm, se = TRUE, color = "red") 
+grid.arrange(aa,bb,cc,dd,ee,ff, nrow=3, ncol=2)
+```
+
+##6가지변수 모두 양의 상관관계가 있어보이지만 검색량을 양의관계라 보기에는 문제가 있음.
+
+
+#상관계수 구하기
+```{r}
+movie2 <- movie1[,c(3:8)]
+cor(movie2)
+```
+
+##다중회귀분석
+```{r}
+reg <- lm(Sales ~ Audience + Screen + Showtime + Search + Year, data=movie1) 
+summary(reg)
+```
+
+###Sales=-1.266*10 ^12 + 6.965*10 ^3*Audience + 2.598*10 ^6*Screen + 3.075*10 ^4*Showtime + 7.471*10 *Search + 6.274*10 ^8*Year
+
+### Intercept와 slope가 너무 큰데 log를 취해보자.
+```{r}
+Lreg <- lm(Sales ~ log(Audience) + log(Screen) + log(Showtime) + log(Search) + log(Year), data=movie1) 
+summary(Lreg)
+```
+
+###Sales=-1.121*10 ^13 + 5.29810 ^10*log(Audience) + 2.710*10 ^9*log(Screen) - 2.639*9 ^4*log(Showtime) + 1.355*10 ^9*log(Search) + 1.371*10 ^12*log(Year)
+
+### log를 취해도 여전히 크고, 부호음수가 되어버린것도 생김.
+
+### 어떤 변수는 log를 취하고 어떤건 안취해도 되는건지 여쭤보기.
+
+
+###code참조 : https://blog.naver.com/lool2389/220817903118

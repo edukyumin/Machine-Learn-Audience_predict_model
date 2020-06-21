@@ -1,0 +1,455 @@
+---
+title: "Analysis Movie data by linear regression model"
+author: "Lee kyu min Jang hyeng ook"
+date: "date : 2018.11.22"
+output:
+ html_document:
+    
+    toc: true
+    toc_float: true
+    theme: united
+#output:
+ # prettydoc::html_pretty:
+  #  theme: cayman
+   # highlight: github
+editor_options: 
+  chunk_output_type: console
+---    
+ * University : 한국외국어 대학교
+ * professor : 이태욱교수님
+
+
+*****************************************
+
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(message = F, warning = F, fig.align = "center")
+```
+
+#0.<span style="color:red"> 데이터 및 패키지 로드</span>
+
+*출처: 영화산업진흥회
+
+
+*필요 패키지 로드
+```{r,message=FALSE,warnig=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(data.table)
+library(gridExtra)
+library(MASS)
+library(car)
+library(randomForest)
+```
+
+*movie 데이터 읽어오기
+```{r}
+movie <- read.csv("C:/Users/user/Desktop/영화 데이터 최신(500).csv")
+movie1 <- movie[,c("Audience","Audiencebox","Sales","Year","Screen","History","Action","Drama","Horor","Disaster","Comic","Erotic","Crime","Actorpower","Thousand","Factory")]
+head(movie1)
+
+```
+
+*---------------------------------------------------------------------------------------------
+
+#1.<span style="color:red"> 변수 알아보기</span>
+
+##1-1양적 설명변수간의 연관성있는지 상관계수로 알아보기
+```{r}
+quantmovie <- movie[,c("Year","Screen","Actorpower","Thousand")]
+cor(quantmovie)
+cor <- cor(quantmovie)>0.5
+cor
+```
+```{r}
+###0.5이상인것만 따로확인
+movie2 <- movie1[,c("Year","Screen","Thousand","Screen")]
+cor(movie2)
+```
+
+##1-2질적 설명변수 알아보기
+```{r}
+par(mfrow = c(3,3))
+###History
+Historyo <- filter(movie1,History==1)
+Historyx <- filter(movie1,History==0)
+hi1 <- mean(Historyo$Audience)
+hi0 <- mean(Historyx$Audience)
+hi <- barplot(c(hi1,hi0),names=c("hi1","hi0"),main="History")
+##Action
+Actiono <- filter(movie1,Action==1)
+Actionx <- filter(movie1,Action==0)
+ac1 <- mean(Actiono$Audience)
+ac0 <- mean(Actionx$Audience)
+ac <- barplot(c(ac1,ac0),names=c("ac1","ac0"),main="Action")
+##Drama
+Dramao <- filter(movie1,Drama==1)
+Dramax <- filter(movie1,Drama==0)
+dr1 <- mean(Dramao$Audience)
+dr0 <- mean(Dramax$Audience)
+dr <- barplot(c(dr1,dr0),names=c("dr1","dr0"),main="Drama")
+##Horor
+Hororo <- filter(movie1,Horor==1)
+Hororx <- filter(movie1,Horor==0)
+ho1 <- mean(Hororo$Audience)
+ho0 <- mean(Hororx$Audience)
+ho <- barplot(c(ho1,ho0),names=c("ho1","ho0"),main="Horor")
+##Disaster
+Disastero <- filter(movie1,Disaster==1)
+Disasterx <- filter(movie1,Disaster==0)
+di1 <- mean(Disastero$Audience)
+di0 <- mean(Disasterx$Audience)
+di <- barplot(c(di1,di0),names=c("di1","di0"),main="Disaster")
+##Comic
+Comico <- filter(movie1,Comic==1)
+Comicx <- filter(movie1,Comic==0)
+co1 <- mean(Comico$Audience)
+co0 <- mean(Comicx$Audience)
+co <- barplot(c(co1,co0),names=c("co1","co0"),main="Comic")
+##Crime
+Crimeo <- filter(movie1,Crime==1)
+Crimex <- filter(movie1,Crime==0)
+cr1 <- mean(Crimeo$Audience)
+cr0 <- mean(Crimex$Audience)
+cr <- barplot(c(cr1,cr0),names=c("cr1","cr0"),main="Crime")
+##Factory1
+Factoryo <- filter(movie1,Factory==1)
+Factoryx <- filter(movie1,Factory==0)
+fa1 <- mean(Factoryo$Audience)
+fa0 <- mean(Factoryx$Audience)
+fa <- barplot(c(fa1,fa0),names=c("fa1","fa0"),main="Factory-Audience")
+##Factory2
+Factoryo <- filter(movie1,Factory==1)
+Factoryx <- filter(movie1,Factory==0)
+fs1 <- mean(Factoryo$Screen)
+fs0 <- mean(Factoryx$Screen)
+fs <- barplot(c(fs1,fs0),names=c("fs1","fs0"),main="Factory-Screen")
+
+```
+
+**장르부문에서 Horor(공포)와 Comic(코믹)은 관객 수에 악영향을 끼치는 것으로 보이고
+
+**영화가 disaster(재난) 요소를 포함하는지 않하는지에 가장 큰 차이를 보인다.
+
+**배우의 파워 여부에 따라 약 2배의 관객 수 차이가 보인다.
+
+**3대배급사 (CJ,롯데,쇼박스) 의 여부도 약 2배의 관객 수 차이를 보인다.
+
+
+
+
+*---------------------------------------------------------------------------------------------
+
+#2.<span style="color:red"> Regression model</span>
+
+##2-1 All data
+```{r}
+reg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data=movie1) 
+summary(reg)
+```
+
+###2-1-1유의한 경우만 사용한경우 (Erotic 변수 제거)
+```{r}
+preg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Crime+Actorpower+Thousand+Factory, data=movie1)
+summary(preg)
+```
+
+**추정된 회귀식 : Audience=-580052.5 - 227303.3Year + 3679.7Screen + 2405245.0History + 2313426.6Action + 2385120.5Drama + 1976499.3Horor + 3585302.2Disaster + 1813742.8Comic + 981308.8Crime + 25756.4Actorpower + 216153.9Thousand + 307547.6Factory
+
+*다중공산성
+```{r}
+vif(preg)
+```
+** VIF<10 을 만족하므로 공선성의 문제는 없다.
+
+```{r}
+par(mfrow=c(2,2))
+plot(preg)
+
+```
+
+```{r}
+qqPlot(preg)
+```
+
+
+
+##2-2 Over 2005
+```{r}
+movie2 <- filter(movie1, Year>5)
+rreg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data=movie2) 
+summary(rreg)
+```
+###2-2-1 유의한것만사용 (Erotic/Factory 변수 제거)
+```{r}
+prreg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Crime+Actorpower+Thousand, data=movie2) 
+summary(prreg)
+```
+
+**추정된 회귀식 : Audience=960200.4 - 368971.9Year +  4861.3Screen + 1997030.1History + 1826374.0Action + 2193360.7Drama + 1642712.4Horor + 3392074.7Disaster + 1928623.9Comic + 1016527.2Crime + 25454.7Actorpower + 220962.7Thousand
+
+```{r}
+vif(prreg)
+```
+
+**Vif<10이므로 다중공선성 문제 없다.
+```{r}
+par(mfrow=c(2,2))
+plot(prreg)
+```
+
+
+
+
+##2-3 Over 2010
+```{r}
+movie3 <- filter(movie1, Year>10)
+rrreg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data=movie3) 
+summary(rrreg)
+```
+###2-3-1 유의한것만 사용(Erotic/Factory 제거)
+```{r}
+prrreg <- lm(Audience ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Crime+Actorpower+Thousand, data=movie3) 
+summary(prrreg)
+```
+
+*추정된 회귀식 : Audience=2963769.3 -523496.1Year + 5133.5Screen + 2298562.8History + 1861830.1Action + 2284030.0Drama + 1981836.9Horor + 1706455.0Disaster + 1927674.7Comic + 1017732.5Crime + 26038.6Actorpower + 247258.6Thousand
+```{r}
+vif(prrreg)
+```
+**Vif<10이므로 다중공선성 문제 없다.
+```{r}
+par(mfrow=c(2,2))
+plot(prrreg)
+```
+
+*---------------------------------------------------------------------------------------------
+
+#3.<span style="color:red"> 세가지 모델의 비교</span>
+##3-1 All data (top 500) 
+**Audience=-580052.5 - 227303.3Year + 3679.7Screen + 2405245.0History + 2313426.6Action + 2385120.5Drama + 1976499.3Horor + 3585302.2Disaster + 1813742.8Comic + 981308.8Crime + 25756.4Actorpower + 216153.9Thousand + 307547.6Factory
+
+##3-22005년 이후 모델: 
+**Audience=960200.4 - 368971.9Year +  4861.3Screen + 1997030.1History + 1826374.0Action + 2193360.7Drama + 1642712.4Horor + 3392074.7Disaster + 1928623.9Comic + 1016527.2Crime + 25454.7Actorpower + 220962.7Thousand
+
+##3-32010년 이후 모델: 
+**Audience=2963769.3 -523496.1Year + 5133.5Screen + 2298562.8History + 1861830.1Action + 2284030.0Drama + 1981836.9Horor + 1706455.0Disaster + 1927674.7Comic + 1017732.5Crime + 26038.6Actorpower + 247258.6Thousand
+
+*---------------------------------------------------------------------------------------------
+
+#4.<span style="color:red"> 가장 좋은 model 찾기</span>
+
+*1.안시성: 관객 5,436,779 연도18 스크린수1538 사극/액션 배우파워3+3+19=25 천만0+0+1 배급사X
+
+**전체모델    : 6,566,602 (오차:-1,129,823)
+
+**2005이후모델: 6,476,120 (오차:-1,039,341)
+
+**2010이후모델: 6,494,779 (오차:-1,057,990)
+
+
+*2.협상: 관객 1,743,437 연도18 스크린수918 범죄 배급사CJ 배우파워6+4+16=26 천만3
+
+**전체모델    : 1,313,437 (오차:-430,000)
+
+**2005이후모델: 1,122,617 (오차:+620,820)
+
+**2010이후모델:   689,904 (오차:+1,053,533)
+
+
+*3.명당: 관객 1,968,493 연도 18 스크린수1,114 역사 배급사X 배우파워5+4+13=22 천만1
+
+**전체모델    : 2,615,714 (오차:+647,221)
+
+**2005이후모델: 2,512,191 (오차:+543,698)
+
+**2010이후모델: 2,378,229 (오차:+409,736)
+
+
+*4.독전: 관객 5,063,620 연도18 스크린1532 범죄, 액션 배우파워 20+10+16=46 천만3 배급사x
+
+**전체모델     : 6,068,023 (오차: 1,004,403)
+
+**2005이후모델 : 6,417,487 (오차: 1,353,849)
+
+**2010이후모델 : 6,198,437 (오차: 1,134,817)
+
+
+*5.원더풀고스트: 관객449,906 연도18 스크린수351 범죄 코미디 배우파워21+5+6=32 천만3 배급사X
+
+**전체모델    : 887,781 (오차:-437,875)
+
+**2005이후모델: 447,612 (오차:-2,294)
+
+**2010이후모델: 236,884 (오차:+213,022)
+
+
+*6.암수살인: 관객3,739,085 연도18 스크린1177 범죄 드라마 배우파워9+9+9=27 천만3 배급O
+
+**전체모델    : 4,677,356 (오차:-938,271)
+
+**2005이후모델: 4,600,509 (오차:-861,424)
+
+**2010이후모델: 4,329,550 (오차:-590,465)
+
+
+*7.창궐: 관객1,596,687 연도18 스크린1351 액션 배우파워25 천만0 배급사x
+
+**전체모델    : 3,257,099 (오차:-1,660,412)
+
+**2005이후모델: 3,349,064 (오차:-1,752,377)
+
+**2010이후모델: 2,988,993 (오차:-1,392,306)
+
+
+*8.미쓰백: 관객721,204 연도18 스크린638 드라마 배우파워7+0+20 천만x 배급사x
+
+**전체모델    :  756,680 (오차:+35,476)
+
+**2005이후모델:  300,853 (오차:-420,351)
+
+**2010이후모델: -196,915 (오차:-918,119) 
+
+
+*9.완벽한타인: 관객4,427,723 연도18 스크린1313 코미디 배우파워28+22+2=52 천만5 배급사o
+
+**전체모델    : 4,701,327 (오차: +273,604) 
+
+**2005이후모델: 5,058,675 (오차: +630,952)
+
+**2010이후모델: 4,799,100 (오차: +371,377)
+
+
+##4-1 Using MSE (단위: 만)
+
+```{r}
+sse1 <- 113^2+43^2+65^2+100^2+43^2+94^2+166^2+4^2+27^2
+mse1 <- sqrt(sse1/9)
+
+sse2 <- 104^2+62^2+54^2+135^2+0.2^2+86^2+175^2+42^2+63^2
+mse2 <- sqrt(sse2/9)
+
+sse3 <- 106^2+105^2+41^2+113^2+21^2+59^2+139^2+92^2+37^2
+mse3 <- sqrt(sse3/9)
+
+a <- c("Total MSE",mse1)
+b <- c("Over 2005 MSE",mse2)
+c <- c("Over 2010 MSE",mse3)
+MSE <- data.frame(a,b,c)
+MSE
+```
+**MSE 측면에서 Total model이 가장 우수하다!
+
+##4-2 Using MAPE
+```{r}
+
+m1 <- c(1129823/5436779,430000/1743437,647221/1968493,1004403/5063620,437875/449906,938271/3739085,1660412/1596687,35476/721204, 273604/4427723)
+mape1 <- median(m1)
+
+m2 <- c(1039341/5436779,620820/1743437,543698/1968493,1353849/5063620,2294/449906,861424/3739085,1752377/1596687,420351/721204,630952/4427723)
+mape2 <- median(m2)
+
+m3 <- c(1057990/5436779,1053533/1743437,409736/1968493,1134817/5063620,213022/449906,590465/3739085,1392306/1596687,918119/721204,371377/4427723)
+mape3 <- median(m3)
+
+d <- c("Total MAPE",mape1)
+e <- c("Over 2005 MAPE",mape2)
+f <- c("Over 2010 MAPE",mape3)
+MAPE <- data.frame(d,e,f)
+MAPE
+```
+**MAPE 측면에서 Over2010 model이 가장 우수하다!
+**이때 영화데이터는 이상치가 크므로 Mean 대신 Median을 사용 하였다.
+
+*---------------------------------------------------------------
+
+
+#5.<span style="color:red"> BOX-CoX변환</span>
+```{r}
+###정규성 만족을 시키기 위해 BOX-CoX변환 
+bc <- boxcox(Audience~Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data= movie1,lambda=seq(-0.4,-0.2,0.01)) 
+bc
+```
+**lambda=-0.24
+
+###5-1 box-cox total
+```{r}
+breg <- lm(Audiencebox ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data=movie1) 
+summary(breg)
+```
+```{r}
+###유의한것만 이용
+bpreg <- lm(Audiencebox ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Factory, data=movie1)
+summary(bpreg)
+```
+```{r}
+par(mfrow=c(2,2))
+plot(bpreg)
+```
+
+###5-2 box-cox 2005
+```{r}
+brreg <- lm(Audiencebox ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory, data=movie2) 
+summary(brreg)
+```
+```{r}
+###유의한변수만이용
+bprreg <- lm(Audiencebox ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Crime+Actorpower, data=movie2) 
+summary(bprreg)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(bprreg)
+```
+
+###5-3 box-cox 2010
+```{r}
+bprrreg <- lm(Audiencebox ~ Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Crime+Actorpower+Thousand, data=movie3) 
+summary(bprrreg)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(bprreg)
+```
+
+**Box-Cox 변환을 하면 정규성 만족한다.
+
+
+*---------------------------------------------------------------------------------------------
+
+#6.<span style="color:red"> Machine learning</span>
+```{r}
+movie99 <- read.csv("C:/Users/user/Desktop/traindata.csv")
+movie99_classifier = randomForest(Audience~., data=movie99, importance=TRUE)
+testdata <- read.csv("C:/Users/user/Desktop/testdata.csv")
+predictedtable=predict(movie99_classifier,testdata[,-1]) 
+table(observed=testdata[,1],predicted=predictedtable)
+```
+**머신러닝 결과 77%의 적중률을 보인다! (9개 test data 중 7개 적중)
+
+*---------------------------------------------------------------------------------------------
+
+
+#7.<span style="color:red"> Regression tree</span>
+##7-1 Regression tree-alldata
+```{r}
+library("party")  
+t1 <- ctree(Audience~Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory,data=movie1)
+plot(t1, main="All data")
+```
+
+##7-2 Regression tree-2005
+```{r}
+t2 <- ctree(Audience~Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory,data=movie2)
+plot(t2,main="Over 2005")
+```
+
+##7-3 Regression tree-2010
+```{r}
+t3 <- ctree(Audience~Year+Screen+History+Action+Drama+Horor+Disaster+Comic+Erotic+Crime+Actorpower+Thousand+Factory,data=movie3)
+plot(t3,main="Over 2010")
+```
+
